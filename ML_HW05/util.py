@@ -1,5 +1,6 @@
 import numpy as np
-
+from numpy.linalg import inv, det, cholesky
+import csv
 def load_data(path='data/input.data'):
     x=[]
     y=[]
@@ -36,12 +37,28 @@ def predict(x_line,X,y,K,beta,alpha=1,length_scale=1):
     :param beta:
     :return: (len(x_line),1) ndarray, (len(x_line),len(x_line)) ndarray
     '''
-    k_x_xstar=kernel(X,x_line,alpha=1,length_scale=1)
-    k_xstar_xstar=kernel(x_line,x_line,alpha=1,length_scale=1)
-    means = k_x_xstar.T @ np.linalg.inv(K) @ y.reshape(-1,1)
-    vars = k_xstar_xstar - k_x_xstar.T @ np.linalg.inv(K) @ k_x_xstar
+    k_x_xstar = kernel(X,x_line,alpha=1,length_scale=1)
+    k_xstar_xstar = kernel(x_line,x_line,alpha=1,length_scale=1)
+    means = k_x_xstar.T @ np.linalg.pinv(K) @ y.reshape(-1,1)
+    vars = k_xstar_xstar + (1/beta)*np.identity(len(k_xstar_xstar))\
+        - k_x_xstar.T @ np.linalg.pinv(K) @ k_x_xstar
 
     return means,vars
+
+def NegativeLogLikelihood(theta, X, Y, beta):
+    theta = theta.ravel()
+    K = kernel(X, X, theta[0], theta[1], theta[2])
+    K += np.identity(len(X), dtype=np.float64) * (1 / beta)
+    nll = np.sum(np.log(np.diagonal(cholesky(K))))
+    nll += 0.5 * Y.T @ inv(K) @ Y
+    nll += 0.5 * len(X) * np.log(2 * np.pi)
+    return nll
+
+def openCSV(filename):
+    with open(filename, 'r') as file:
+        content = list(csv.reader(file))
+        content = np.array(content)
+    return content
 
 
 
