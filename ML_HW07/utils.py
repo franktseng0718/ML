@@ -5,6 +5,8 @@ import scipy.spatial.distance
 from datetime import datetime
 import matplotlib.pyplot as plt
 SHAPE = (50, 50)
+kernels = ['linear kernel', 'polynomial kernel', 'rbf kernel']
+K = [1, 3, 5, 7, 9, 11]
 def readPGM(filename):
     image = Image.open(filename)
     image = image.resize(SHAPE, Image.ANTIALIAS)
@@ -61,21 +63,30 @@ def draw(target_data, target_filename, title, W, mu=None):
         plt.imshow(reconstruction[i].reshape(SHAPE[::-1]), cmap='gray')
         plt.savefig(f'./{folder}/{target_filename[i]}.png')
 
-def LDA(X, label, dims):
-    (n, d) = X.shape
-    label = np.asarray(label)
-    c = np.unique(label)
-    mu = np.mean(X, axis=0)
-    S_w = np.zeros((d, d), dtype=np.float64)
-    S_b = np.zeros((d, d), dtype=np.float64)
-    for i in c:
-        X_i = X[np.where(label == i)[0], :]
-        mu_i = np.mean(X_i, axis=0)
-        S_w += (X_i - mu_i).T @ (X_i - mu_i)
-        S_b += X_i.shape[0] * ((mu_i - mu).T @ (mu_i - mu))
-    eigen_val, eigen_vec = np.linalg.eig(np.linalg.pinv(S_w) @ S_b)
-    for i in range(eigen_vec.shape[1]):
-        eigen_vec[:, i] = eigen_vec[:, i] / np.linalg.norm(eigen_vec[:, i])
-    idx = np.argsort(eigen_val)[::-1]
-    W = eigen_vec[:, idx][:, :dims].real
-    return W
+def distance(vec1, vec2):
+    return np.sum((vec1 - vec2) ** 2)
+
+def faceRecognition(X, X_label, test, test_label, method, kernel_type=None):
+    if kernel_type is None:
+        print(f'Face recognition with {method} and KNN:')
+    else:
+        print(f'Face recognition with Kernel {method}({kernels[kernel_type - 1]}) and KNN:')
+    dist_mat = []
+    for i in range(test.shape[0]):
+        dist = []
+        for j in range(X.shape[0]):
+            dist.append((distance(X[j], test[i]), X_label[j]))
+        dist.sort(key=lambda x: x[0])
+        dist_mat.append(dist)
+    for k in K:
+        correct = 0
+        total = test.shape[0]
+        for i in range(test.shape[0]):
+            dist = dist_mat[i]
+            neighbor = np.asarray([x[1] for x in dist[:k]])
+            neighbor, count = np.unique(neighbor, return_counts=True)
+            predict = neighbor[np.argmax(count)]
+            if predict == test_label[i]:
+                correct += 1
+        print(f'K={k:>2}, accuracy: {correct / total:>.3f} ({correct}/{total})')
+    print()
