@@ -66,27 +66,56 @@ def draw(target_data, target_filename, title, W, mu=None):
 def distance(vec1, vec2):
     return np.sum((vec1 - vec2) ** 2)
 
-def faceRecognition(X, X_label, test, test_label, method, kernel_type=None):
-    if kernel_type is None:
-        print(f'Face recognition with {method} and KNN:')
+
+
+def linearKernel(X):
+    return X @ X.T
+
+def polynomialKernel(X, gamma, coef, degree):
+    return np.power(gamma * (X @ X.T) + coef, degree)
+
+def rbfKernel(X, gamma):
+    return np.exp(-gamma * scipy.spatial.distance.cdist(X, X, 'sqeuclidean'))
+
+def getKernel(X, kernel_type):
+    if kernel_type == 1:
+        kernel = linearKernel(X)
+    elif kernel_type == 2:
+        kernel = polynomialKernel(X, 5, 10, 2)
     else:
-        print(f'Face recognition with Kernel {method}({kernels[kernel_type - 1]}) and KNN:')
-    dist_mat = []
-    for i in range(test.shape[0]):
-        dist = []
-        for j in range(X.shape[0]):
-            dist.append((distance(X[j], test[i]), X_label[j]))
-        dist.sort(key=lambda x: x[0])
-        dist_mat.append(dist)
-    for k in K:
-        correct = 0
-        total = test.shape[0]
-        for i in range(test.shape[0]):
-            dist = dist_mat[i]
-            neighbor = np.asarray([x[1] for x in dist[:k]])
-            neighbor, count = np.unique(neighbor, return_counts=True)
-            predict = neighbor[np.argmax(count)]
-            if predict == test_label[i]:
-                correct += 1
-        print(f'K={k:>2}, accuracy: {correct / total:>.3f} ({correct}/{total})')
-    print()
+        kernel = rbfKernel(X, 1e-7)
+    return kernel
+
+def kernelPCA(X, dims, kernel_type):
+    kernel = getKernel(X, kernel_type)
+    n = kernel.shape[0]
+    one = np.ones((n, n), dtype=np.float64) / n
+    kernel = kernel - one @ kernel - kernel @ one + one @ kernel @ one
+    eigen_val, eigen_vec = np.linalg.eigh(kernel)
+    for i in range(eigen_vec.shape[1]):
+        eigen_vec[:, i] = eigen_vec[:, i] / np.linalg.norm(eigen_vec[:, i])
+    idx = np.argsort(eigen_val)[::-1]
+    eigen_val = np.column_stack(eigen_val[idx])
+    W = eigen_vec[:, idx][:, :dims].real
+    return kernel @ W
+
+def kernelLDA(X, label, dims, kernel_type):
+    label = np.asarray(label)
+    c = np.unique(label)
+    kernel = getKernel(X, kernel_type)
+    n = kernel.shape[0]
+    mu = np.mean(kernel, axis=0)
+    N = np.zeros((n, n), dtype=np.float64)
+    M = np.zeros((n, n), dtype=np.float64)
+    for i in c:
+        K_i = kernel[np.where(label == i)[0], :]
+        l = K_i.shape[0]
+        mu_i = np.mean(K_i, axis=0)
+        N += K_i.T @ (np.eye(l) - (np.ones((l, l), dtype=np.float64) / l)) @ K_i
+        M += l * ((mu_i - mu).T @ (mu_i - mu))
+    eigen_val, eigen_vec = np.linalg.eig(np.linalg.pinv(N) @ M)
+    for i in range(eigen_vec.shape[1]):
+        eigen_vec[:, i] = eigen_vec[:, i] / np.linalg.norm(eigen_vec[:, i])
+    idx = np.argsort(eigen_val)[::-1]
+    W = eigen_vec[:, idx][:, :dims].real
+    return kernel @ W
