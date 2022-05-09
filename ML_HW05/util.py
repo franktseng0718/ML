@@ -16,7 +16,7 @@ def load_data(path='data/input.data'):
 
 def kernel(X1,X2,sigma=1, alpha=1,length_scale=1):
     '''
-    using rational quadratic kernel function: k(x_i, x_j) = (1 + (x_i-x_j)^2 / (2*alpha * length_scale^2))^-alpha
+    using rational quadratic kernel function: k(x_i, x_j) = sigma^2 *(1 + (x_i-x_j)^2 / (2*alpha * length_scale^2))^-alpha
     :param X1: (n) ndarray
     :param X2: (m) ndarray
     return: (n,m)  ndarray
